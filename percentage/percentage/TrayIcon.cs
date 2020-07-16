@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Drawing;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
@@ -10,24 +11,32 @@ namespace percentage
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
         static extern bool DestroyIcon(IntPtr handle);
 
-        private const string iconFont = "Segoe UI";
+        private const string iconFont = "Segoe UI Semibold";
         private const int iconFontSize = 14;
+        // private const int iconFontSizeFull = 10;
+
+        private const int updateFrequency = 5000; // in miliseconds
 
         private string batteryPercentage;
         private NotifyIcon notifyIcon;
+        private MenuItem descriptionMenuItem;
 
         public TrayIcon()
         {
             ContextMenu contextMenu = new ContextMenu();
             MenuItem menuItem = new MenuItem();
+            descriptionMenuItem = new MenuItem();
 
             notifyIcon = new NotifyIcon();
 
             // initialize contextMenu
-            contextMenu.MenuItems.AddRange(new MenuItem[] { menuItem });
+            contextMenu.MenuItems.AddRange(new MenuItem[] { descriptionMenuItem, menuItem });
+
+            // initialize descriptionMenuItem
+            descriptionMenuItem.Text = "";
+            descriptionMenuItem.Enabled = false;
 
             // initialize menuItem
-            menuItem.Index = 0;
             menuItem.Text = "E&xit";
             menuItem.Click += new System.EventHandler(menuItem_Click);
 
@@ -39,24 +48,93 @@ namespace percentage
 
             Timer timer = new Timer();
             timer.Tick += new EventHandler(timer_Tick);
-            timer.Interval = 1000; // in miliseconds
+            timer.Interval = updateFrequency;
             timer.Start();
         }
 
         private void timer_Tick(object sender, EventArgs e)
         {
             PowerStatus powerStatus = SystemInformation.PowerStatus;
+            bool fullyCharged = (powerStatus.BatteryLifePercent == 1.0);
+
+            BatteryChargeStatus chargeStatus = SystemInformation.PowerStatus.BatteryChargeStatus;
+            bool charging = chargeStatus.HasFlag(BatteryChargeStatus.Charging);
+            bool critical = chargeStatus.HasFlag(BatteryChargeStatus.Low);
+            bool noBattery = chargeStatus.HasFlag(BatteryChargeStatus.NoSystemBattery);
+
+            PowerLineStatus powerLineStatus = SystemInformation.PowerStatus.PowerLineStatus;
+            bool pluggedIn = (powerLineStatus == PowerLineStatus.Online);
+
             batteryPercentage = (powerStatus.BatteryLifePercent * 100).ToString();
 
-            using (Bitmap bitmap = new Bitmap(DrawText(batteryPercentage, new Font(iconFont, iconFontSize), Color.White, Color.Black)))
+            Color fontColor = Color.White;
+            if (!noBattery)
+            {
+                if (charging || (pluggedIn && fullyCharged))
+                {
+                    fontColor = Color.ForestGreen;
+                }
+                else if (critical)
+                {
+                    fontColor = Color.Red;
+                }
+            }
+
+            Font font;
+            font = new Font(iconFont, iconFontSize);
+            /*if (batteryPercentage.Length > 2)
+            {
+                font = new Font(iconFont, iconFontSizeFull);
+            }
+            else
+            {
+                
+            }*/
+
+            using (Bitmap bitmap = new Bitmap(DrawText(batteryPercentage, font, fontColor, Color.Transparent)))
             {
                 System.IntPtr intPtr = bitmap.GetHicon();
                 try
                 {
                     using (Icon icon = Icon.FromHandle(intPtr))
                     {
+                        string description = "";
+                        if (noBattery)
+                        {
+                            description = "No Battery Detected";
+                        }
+                        else if (pluggedIn)
+                        {
+                            if (charging)
+                            {
+                                description = string.Format("Charging ({0}%)", batteryPercentage);
+                            }
+                            else if (fullyCharged)
+                            {
+                                description = string.Format("Fully Charged ({0}%)", batteryPercentage);
+                            }
+                            else
+                            {
+                                description = string.Format("Not Charging ({0}%)", batteryPercentage);
+                            }
+                        }
+                        else
+                        {
+                            int totalRemaining = SystemInformation.PowerStatus.BatteryLifeRemaining;
+                            if (totalRemaining > 0)
+                            {
+                                TimeSpan timeSpan = TimeSpan.FromSeconds(totalRemaining);
+                                description = string.Format("{1} hr {2:D2} min ({0}%) remaining", batteryPercentage, timeSpan.Hours, timeSpan.Minutes);
+                            }
+                            else
+                            {
+                                description = string.Format("{0}% remaining", batteryPercentage);
+                            }
+                        }
                         notifyIcon.Icon = icon;
-                        notifyIcon.Text = batteryPercentage + "%";
+                        notifyIcon.Text = description;
+
+                        descriptionMenuItem.Text = description;
                     }
                 }
                 finally
@@ -76,24 +154,25 @@ namespace percentage
         private Image DrawText(String text, Font font, Color textColor, Color backColor)
         {
             var textSize = GetImageSize(text, font);
-            Image image = new Bitmap((int) textSize.Width, (int) textSize.Height);
+            Image image = new Bitmap((int)textSize.Width, (int)textSize.Height);
             using (Graphics graphics = Graphics.FromImage(image))
             {
-                // paint the background
-                graphics.Clear(backColor);
-
                 // create a brush for the text
                 using (Brush textBrush = new SolidBrush(textColor))
                 {
-                    graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
-                    graphics.DrawString(text, font, textBrush, 0, 0);
+                    graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+                    if (text.Contains("100"))
+                    {
+                        graphics.DrawString(text, font, textBrush, 0, 5.0F);
+                    } else {
+                        graphics.DrawString(text, font, textBrush, 0, 2.0F);
+                    }
                     graphics.Save();
                 }
             }
 
             return image;
         }
-
         private static SizeF GetImageSize(string text, Font font)
         {
             using (Image image = new Bitmap(1, 1))

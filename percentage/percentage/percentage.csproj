@@ -49,10 +49,10 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup>
-    <ManifestCertificateThumbprint>5EAFB344C4489CCD86726031EE568ACE22CF26C4</ManifestCertificateThumbprint>
+    <ManifestCertificateThumbprint>C0EB4A6BC4CB930BD7B1C036B88AEA408447AE27</ManifestCertificateThumbprint>
   </PropertyGroup>
   <PropertyGroup>
-    <ManifestKeyFile>percentage_TemporaryKey.pfx</ManifestKeyFile>
+    <ManifestKeyFile>percentage_2_TemporaryKey.pfx</ManifestKeyFile>
   </PropertyGroup>
   <PropertyGroup>
     <GenerateManifests>true</GenerateManifests>
@@ -86,6 +86,7 @@
       <AutoGen>True</AutoGen>
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
+    <None Include="percentage_2_TemporaryKey.pfx" />
     <None Include="percentage_TemporaryKey.pfx" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
